@@ -10,7 +10,6 @@ It is designed to let users write and run Discord bot scripts right from their b
 
 - **Multiple File Tabs** – Create, switch, and delete multiple files like in VS Code.
 - **Monaco Editor** – Full-featured code editor with syntax highlighting.
-- **Local Persistence** – Files are automatically saved to `localStorage` and restored on refresh.
 - **Download Files** – Save the current tab’s file to your local machine as a `.py`.
 
 ---

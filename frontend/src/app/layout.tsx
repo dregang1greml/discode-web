@@ -3,7 +3,7 @@ import { Gabarito } from "next/font/google";
 import "./globals.css";
 import { Nav } from "@/components/custom/index/nav";
 const gabarito = Gabarito({
-  variable: "--font-geist-sans",
+  variable: "--font-gabarito",
   subsets: ["latin"],
 });
 
@@ -13,13 +13,13 @@ export const metadata: Metadata = {
     "DisCode. A web application wherein you can run & compile your code script.",
   openGraph: {
     type: "website",
-    url: "https://metatags.io/",
+    url: "http://localhost:3000",
     title: "DisCode",
     description:
       "DisCode. A web application wherein you can run & compile your code script.",
     images: [
       {
-        url: "https://metatags.io/images/meta-tags.png",
+        url: "/discode-banner.png",
         width: 1200,
         height: 630,
         alt: "DisCode",
@@ -28,11 +28,11 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    site: "https://metatags.io/",
+    site: "http://localhost:3000", //locally muna
     title: "DisCode",
     description:
       "DisCode. A web application wherein you can run & compile your code script.",
-    images: ["https://metatags.io/images/meta-tags.png"],
+    images: ["/discode-banner.png"],
   },
 };
 
