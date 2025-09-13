@@ -56,7 +56,7 @@ bot.run(TOKEN)
   useEffect(() => {
     if (!polling) return;
     const id = setInterval(async () => {
-      const res = await fetch("http://127.0.0.1:8000/logs");
+      const res = await fetch("https://discode-web.onrender.com/logs");
       const data = await res.json();
       setOutput(data.logs || []);
     }, 2000);
@@ -64,7 +64,7 @@ bot.run(TOKEN)
   }, [polling]);
 
   const runBot = async () => {
-    const res = await fetch("http://127.0.0.1:8000/run", {
+    const res = await fetch("https://discode-web.onrender.com/run", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code: files[activeIndex].code }),
@@ -80,7 +80,9 @@ bot.run(TOKEN)
   };
 
   const stopBot = async () => {
-    const res = await fetch("http://127.0.0.1:8000/stop", { method: "POST" });
+    const res = await fetch("https://discode-web.onrender.com/stop", {
+      method: "POST",
+    });
     const data = await res.json();
     setOutput((prev) => [...prev, data.status]);
     setPolling(false);
