@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Editor from "@monaco-editor/react";
-import FileMenu from "@/components/custom/index/menu";
+import { About } from "@/components/custom/index/about";
 
 type FileTab = {
   name: string;
@@ -10,9 +10,39 @@ type FileTab = {
 };
 
 export default function Home() {
-  const [files, setFiles] = useState<FileTab[]>([{ name: "bot.py", code: "" }]);
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [output, setOutput] = useState<string>("");
+  const [files, setFiles] = useState<FileTab[]>([
+    {
+      name: "bot.py",
+      code: `
+import sys
+sys.stdout.reconfigure(encoding='utf-8')
+import discord
+from discord.ext import commands
+import os
+
+#paste here your bot token
+TOKEN = "BOT_TOKEN"
+
+intents = discord.Intents.default()
+intents.message_content = True
+
+#prefix
+bot = commands.Bot(command_prefix="!", intents=intents)
+
+@bot.command()
+async def ping(ctx):
+    await ctx.send("test")
+
+# 3. Run bot
+bot.run(TOKEN)
+
+      `,
+    },
+  ]);
+  const [activeIndex, _] = useState(0);
+  const [output, setOutput] = useState<string[]>([]);
+  const [polling, setPolling] = useState(false);
+  const [status, setStatus] = useState("Idle");
 
   useEffect(() => {
     const saved = localStorage.getItem("files");
@@ -23,21 +53,38 @@ export default function Home() {
     localStorage.setItem("files", JSON.stringify(files));
   }, [files]);
 
-  const runCode = async () => {
-    try {
-      const res = await fetch("http://127.0.0.1:8000/run", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ code: files[activeIndex].code }),
-      });
-
+  useEffect(() => {
+    if (!polling) return;
+    const id = setInterval(async () => {
+      const res = await fetch("http://127.0.0.1:8000/logs");
       const data = await res.json();
-      setOutput(data.stderr ? data.stderr : data.stdout);
-    } catch (err) {
-      setOutput("error connecting to backend");
+      setOutput(data.logs || []);
+    }, 2000);
+    return () => clearInterval(id);
+  }, [polling]);
+
+  const runBot = async () => {
+    const res = await fetch("http://127.0.0.1:8000/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: files[activeIndex].code }),
+    });
+    const data = await res.json();
+    if (data.error) {
+      alert(data.error);
+    } else {
+      setPolling(true);
+      setStatus(`Running (PID ${data.pid})`);
+      setOutput([`Bot started with PID ${data.pid}`]);
     }
+  };
+
+  const stopBot = async () => {
+    const res = await fetch("http://127.0.0.1:8000/stop", { method: "POST" });
+    const data = await res.json();
+    setOutput((prev) => [...prev, data.status]);
+    setPolling(false);
+    setStatus("Stopped");
   };
 
   const handleEditorChange = (value: string | undefined) => {
@@ -46,77 +93,21 @@ export default function Home() {
     setFiles(updated);
   };
 
-  const addNewFile = () => {
-    setFiles([...files, { name: `file${files.length + 1}.py`, code: "" }]);
-    setActiveIndex(files.length);
-  };
-
-  const downloadFile = (fileName: string, code: string) => {
-    const blob = new Blob([code], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = fileName;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const removeFile = (index: number) => {
-    if (files.length === 1) return;
-    const newFiles = files.filter((_, i) => i !== index);
-    setFiles(newFiles);
-    if (activeIndex >= index) {
-      setActiveIndex(Math.max(0, activeIndex - 1));
-    }
-  };
-
-  const renameFile = (index: number) => {
-    const newName = prompt("Enter new file name", files[index].name);
-    if (newName) {
-      const updated = [...files];
-      updated[index].name = newName + ".py";
-      setFiles(updated);
-    }
-  };
-
   return (
-    <div className="p-6 space-y-6">
+    <main className="p-6 space-y-6">
       <h1 className="text-2xl font-semibold">Discord Bot Online Compiler</h1>
+      <p className="mt-3 text-sm underline">
+        <em>
+          Please note: because the backend is hosted on Render&apos;s free tier
+          using FastAPI, compilation responses may be slower and unstable at
+          times.
+        </em>
+      </p>
+      <div className="text-sm text-gray-600">Status: {status}</div>
 
-      <div className=" flex flex-wrap items-center gap-2 border-b pb-2 z-50">
-        {files.map((file, idx) => (
-          <div
-            key={idx}
-            className={`flex items-center rounded-t-lg border px-2 py-1 ${
-              idx === activeIndex ? "font-semibold" : ""
-            }`}
-          >
-            <button
-              onClick={() => setActiveIndex(idx)}
-              className="mr-1 text-sm focus:outline-none"
-            >
-              {file.name}
-            </button>
-
-            <FileMenu
-              onRename={() => renameFile(idx)}
-              onDownload={() => downloadFile(files[idx].name, files[idx].code)}
-              onRemove={() => removeFile(idx)}
-            />
-          </div>
-        ))}
-
-        <button
-          onClick={addNewFile}
-          className="px-3 py-1 rounded-t-lg border text-sm font-medium"
-        >
-          <b>&#43;</b> New File
-        </button>
-      </div>
-
-      <div className="rounded-lg border overflow-hidden -z-40">
+      <div className="rounded-lg border overflow-hidden">
         <Editor
-          height="400px"
+          height="300px"
           defaultLanguage="python"
           value={files[activeIndex].code}
           onChange={handleEditorChange}
@@ -126,32 +117,36 @@ export default function Home() {
 
       <div className="flex gap-3">
         <button
-          disabled={!files[activeIndex].code.trim()}
-          onClick={runCode}
-          className={`px-4 ${
-            !files[activeIndex].code.trim()
+          disabled={!files[activeIndex].code.trim() || polling}
+          onClick={runBot}
+          className={`px-4 py-2 rounded-md border text-sm font-medium ${
+            !files[activeIndex].code.trim() || polling
               ? "bg-gray-500 text-gray-300"
-              : "bg-white text-black hover:cursor-pointer"
-          } py-2 rounded-md border text-sm font-medium `}
+              : "bg-black text-white"
+          }`}
         >
-          Run
+          {polling ? "Running…" : "Run Bot"}
         </button>
         <button
-          onClick={() =>
-            downloadFile(files[activeIndex].name, files[activeIndex].code)
-          }
-          className="px-4 py-2 rounded-md border text-sm font-medium"
+          onClick={stopBot}
+          disabled={!polling}
+          className={`px-4 py-2 rounded-md border text-sm font-medium ${
+            polling ? "bg-black text-white" : "bg-gray-500 text-gray-300"
+          }`}
         >
-          Save File
+          Stop Bot
         </button>
       </div>
 
       <div>
-        <h3 className="text-lg font-medium mb-2">Output:</h3>
+        <h3 className="text-lg font-medium mb-2">Logs:</h3>
         <section className="h-[200px] overflow-y-auto bg-black text-white p-3 text-sm">
-          <pre className="otext-sm whitespace-pre-wrap">{output}</pre>
+          <pre className="whitespace-pre-wrap">
+            {output.length ? output.join("\n") : "No output yet"}
+          </pre>
         </section>
       </div>
-    </div>
+      <About />
+    </main>
   );
 }

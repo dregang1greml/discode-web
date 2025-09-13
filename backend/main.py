@@ -1,13 +1,13 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-import subprocess
-import tempfile, os
+import subprocess, tempfile, os, threading
 from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],  #local url
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -16,28 +16,60 @@ app.add_middleware(
 class CodeRequest(BaseModel):
     code: str
 
-@app.get("/")
-def root():
-    return {"message": "backend is runnin broski"}
+running_process = None
+running_logs = []
+current_file = None 
+
+def stream_output(pipe, prefix):
+    """Read process stdout/stderr line by line and store them."""
+    global running_logs
+    for line in iter(pipe.readline, ''):
+        if not line:
+            break
+        running_logs.append(f"[{prefix}] {line.strip()}")
 
 @app.post("/run")
 def run_code(req: CodeRequest):
-    with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as tmp:
-        tmp.write(req.code.encode("utf-8"))
-        tmp_path = tmp.name
+    global running_process, running_logs, current_file
 
-    try:
-        result = subprocess.run(
-            ["python", tmp_path],  #no dockr yet in thiss proj
-            capture_output=True, text=True, timeout=5
-        )
-        return {"stdout": result.stdout, "stderr": result.stderr}
-    except subprocess.TimeoutExpired:
-        return {"stdout": "", "stderr": "Execution timed out"}
-    finally:
-        os.unlink(tmp_path)
+    if running_process and running_process.poll() is None:
+        return {"error": "A bot is already running. Stop it first."}
 
+    running_logs = [] 
+    tmp = tempfile.NamedTemporaryFile(suffix=".py", delete=False)
+    tmp.write(req.code.encode("utf-8"))
+    tmp_path = tmp.name
+    tmp.close()
+    current_file = tmp_path 
 
-@app.get("/status")
-def root():
-    return {"status": "ok"}
+    process = subprocess.Popen(
+        ["python", tmp_path],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        bufsize=1
+    )
+
+    running_process = process
+
+    threading.Thread(target=stream_output, args=(process.stdout, "OUT"), daemon=True).start()
+    threading.Thread(target=stream_output, args=(process.stderr, "INFO"), daemon=True).start()
+
+    return {"status": "Bot started", "pid": process.pid}
+
+@app.get("/logs")
+def get_logs():
+    return {"logs": running_logs}
+
+@app.post("/stop")
+def stop_bot():
+    global running_process, current_file
+    if running_process and running_process.poll() is None:
+        running_process.terminate()
+        running_process.wait()
+
+    if current_file and os.path.exists(current_file):
+        os.unlink(current_file)
+        current_file = None
+
+    return {"status": "Bot stopped"}

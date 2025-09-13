@@ -2,7 +2,7 @@ import { FaDiscord, FaGithub } from "react-icons/fa6";
 export const Nav = () => {
   return (
     <>
-      <nav className="flex justify-evenly  w-full h-[5em] items-center">
+      <nav className="flex justify-evenly  w-full h-[5em] items-center border-b-[1px] border-black sticky">
         <h3 className="text-3xl font-bold">DisCode</h3>
         <section className="space-x-3.5 flex justify-center items-center">
           <h3 className="text-3xl font-bold">Join Us!</h3>
@@ -14,7 +14,11 @@ export const Nav = () => {
           >
             <FaDiscord size={30} />
           </a>
-          <a href={""} target="_blank" title="Github Repo">
+          <a
+            href={"https://github.com/dregang1greml/discode-web"}
+            target="_blank"
+            title="Github Repo"
+          >
             <FaGithub size={30} />
           </a>
         </section>
